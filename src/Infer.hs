@@ -41,13 +41,6 @@ data InferError
 -- a new type variable, it can return a generic type `a`
 type Infer a = ExceptT InferError (State Int) a
 
--- | Perform the inference
-infer :: Expr -> Context -> Either InferError Type
-infer expr ctx = do
-  (ty, cnst) <- evalState (runExceptT (genConstraints expr ctx)) 0
-  substitutions <- unify cnst
-  return $ tySubst substitutions ty
-
 -- | Return a new type variable, updating the internal state
 newTypeVariable :: Infer Type
 newTypeVariable = do
@@ -83,7 +76,7 @@ genConstraints expr ctx =
       return
         (ty2, [(tycond, tyBoolean), (ty1, ty2)] ++ cnsxcond ++ cnst1 ++ cnst2)
     LetBind name expr1 expr2
-    -- TODO: add let polymorphism
+      -- TODO: add let polymorphism
      -> do
       (ty1, cnst1) <- genConstraints expr1 ctx
       (ty2, cnst2) <- genConstraints expr2 (Map.insert name ty1 ctx)
@@ -98,14 +91,17 @@ genConstraints expr ctx =
       (ty1, cnst1) <- genConstraints body (Map.insert name ty ctx)
       return (TyArrow ty ty1, cnst1)
 
--- | Substitute type s into the type ty
-tySubst :: [(Type, Type)] -> Type -> Type
-tySubst s ty =
+-- | Apply the type substitution subst to the type ty
+tySubst :: Constraint -> Type -> Type
+tySubst subst ty =
   case ty of
-    t@(TyConst "Boolean") -> t
-    t@(TyConst "Number")  -> t
-    t@(TyVar k)           -> fromMaybe t $ lookup t s
-    TyArrow ty1 ty2       -> TyArrow (tySubst s ty1) (tySubst s ty2)
+    TyConst _ -> ty
+    TyVar k ->
+      case subst of
+        (TyVar k', x)
+          | k' == k -> x
+        _ -> ty
+    TyArrow ty1 ty2 -> TyArrow (tySubst subst ty1) (tySubst subst ty2)
 
 -- | Return whether the type parameter a occurs in the type ty
 occurs :: String -> Type -> Bool
@@ -134,8 +130,16 @@ unify eq =
           ((ty1, ty2):_) -> Left $ IncompatibleTypes ty1 ty2
         where
           unifyTyVar a ty xs substs =
-            let ts = tySubst [(TyVar a, ty)]
+            let ts = tySubst (TyVar a, ty)
                 eq' = map (\(ty1, ty2) -> (ts ty1, ts ty2)) xs
                 substs' = (TyVar a, ty) : map (\(n, u) -> (n, ts u)) substs
              in unify' eq' substs'
    in unify' eq []
+
+-- | Perform the inference
+infer :: Expr -> Context -> Either InferError Type
+infer expr ctx = do
+  (ty, cnst) <- evalState (runExceptT (genConstraints expr ctx)) 0
+  substitutions <- unify cnst
+  -- Apply all of the substitutions to the final type
+  return $ foldl (\acc subst -> tySubst subst acc) ty substitutions

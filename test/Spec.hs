@@ -147,9 +147,19 @@ main =
           (IfExpr (BinOp Plus (Number 1) (Number 2)) (Number 3) (Number 4))
           emptyContext `shouldBe`
           (Left $ IncompatibleTypes (TyConst "Number") tyBoolean)
-      it "infers let expressions" $
+      it "infers let expressions" $ do
         infer (LetBind "x" (Number 1) (Var "x")) emptyContext `shouldBe`
-        (Right $ TyConst "Number")
+          (Right $ TyConst "Number")
+        infer
+          (LetBind
+             "f"
+             (Lambda "x" (Var "x"))
+             (LetBind
+                "g"
+                (Apply (Var "f") (Boolean True))
+                (Apply (Var "f") (Number 3))))
+          emptyContext `shouldBe`
+          (Right $ TyConst "Number")
       it "infers lambdas" $ do
         infer (Lambda "x" (Number 1)) emptyContext `shouldBe`
           (Right $ TyArrow (TyVar "0") (TyConst "Number"))

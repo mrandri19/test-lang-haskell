@@ -10,8 +10,8 @@ module Type
 type Name = String
 
 data Type
-  = TyVar String
-  | TyConst String
+  = TyVar Name
+  | TyConst Name
   | TyArrow Type
             Type
   deriving (Eq, Show)
