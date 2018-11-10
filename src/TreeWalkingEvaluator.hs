@@ -9,7 +9,9 @@ import           Syntax
 
 -- TODO: try using small-step semantics
 -- Right now we are using VClosure to capture the exection environment, I wonder
--- if using substitution would be better
+-- if using substitution would be better.
+-- This is big-step because it maintains a data structure binding variables to values
+-- small-step would mean substituting variables for values, it's much less efficient
 type Context = [(Name, Value)]
 
 data Value

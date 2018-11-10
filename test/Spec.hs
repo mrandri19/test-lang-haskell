@@ -160,6 +160,13 @@ main =
                 (Apply (Var "f") (Number 3))))
           emptyContext `shouldBe`
           (Right $ TyConst "Number")
+        infer
+          (LetBind
+             "id"
+             (Lambda "x" (Var "x"))
+             (Apply (Apply (Var "id") (Var "id")) (Number 2)))
+          emptyContext `shouldBe`
+          (Right $ TyConst "Number")
       it "infers lambdas" $ do
         infer (Lambda "x" (Number 1)) emptyContext `shouldBe`
           (Right $ TyArrow (TyVar "0") (TyConst "Number"))

@@ -83,6 +83,8 @@ genConstraints expr ctx =
       return (ty2, cnst1 ++ cnst2)
     Apply expr1 expr2 -> do
       (ty1, cnst1) <- genConstraints expr1 ctx
+      -- FIXME: we are generating the constraints for expr2 without putting into
+      -- the context the information we already know about expr1
       (ty2, cnst2) <- genConstraints expr2 ctx
       ty <- newTypeVariable
       return (ty, [(ty1, TyArrow ty2 ty)] ++ cnst1 ++ cnst2)
@@ -91,7 +93,7 @@ genConstraints expr ctx =
       (ty1, cnst1) <- genConstraints body (Map.insert name ty ctx)
       return (TyArrow ty ty1, cnst1)
 
--- | Apply the type substitution subst to the type ty
+-- | Apply one type substitution to the type ty
 tySubst :: Constraint -> Type -> Type
 tySubst subst ty =
   case ty of
@@ -103,14 +105,19 @@ tySubst subst ty =
         _ -> ty
     TyArrow ty1 ty2 -> TyArrow (tySubst subst ty1) (tySubst subst ty2)
 
+-- | Apply many type substitutions to the type ty
+tySubstMany :: [Constraint] -> Type -> Type
+tySubstMany substitutions ty =
+  foldl (\acc subst -> tySubst subst acc) ty substitutions
+
 -- | Return whether the type parameter a occurs in the type ty
 occurs :: String -> Type -> Bool
-occurs a ty =
+occurs tyParam ty =
   case ty of
     TyConst "Number"  -> False
     TyConst "Boolean" -> False
-    TyVar b           -> a == b
-    TyArrow ty1 ty2   -> occurs a ty1 || occurs a ty2
+    TyVar tyParam'    -> tyParam == tyParam'
+    TyArrow ty1 ty2   -> occurs tyParam ty1 || occurs tyParam ty2
 
 -- | Unify the system of type equations and return an array of substitutions
 unify :: [Constraint] -> Either InferError [Constraint]
@@ -142,4 +149,4 @@ infer expr ctx = do
   (ty, cnst) <- evalState (runExceptT (genConstraints expr ctx)) 0
   substitutions <- unify cnst
   -- Apply all of the substitutions to the final type
-  return $ foldl (\acc subst -> tySubst subst acc) ty substitutions
+  return $ tySubstMany substitutions ty
